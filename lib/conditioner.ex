@@ -23,6 +23,13 @@ defmodule Conditioner do
   If called with a name that hasn't been registered returns `{:error, unknown_name}`.
   """
   def ask(name) do
+    Telemetry.execute(
+      [:ask, :start],
+      %{name: name}
+    )
+
+    start = timestamp()
+
     case Timeouts.get(name) do
       {:error, :not_found} ->
         Telemetry.execute(
@@ -34,12 +41,6 @@ defmodule Conditioner do
 
       {:ok, limit} ->
         try do
-          Telemetry.execute(
-            [:ask, :start],
-            %{name: name}
-          )
-
-          start = timestamp()
 
           true = GenServer.call(server_name(name), :ask, limit)
 
