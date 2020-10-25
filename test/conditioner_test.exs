@@ -27,6 +27,11 @@ defmodule ConditionerTest do
     assert {:error, :unknown_name} = Conditioner.ask("some name")
   end
 
+  test "check if a name exists", %{name: name} do
+    assert true == Conditioner.exists?(name)
+    assert false == Conditioner.exists?("doesn't exist")
+  end
+
   test "ensure happy path telemetry events fire", %{name: name} do
     attach_events(name)
 

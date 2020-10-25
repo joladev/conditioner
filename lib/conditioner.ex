@@ -93,6 +93,13 @@ defmodule Conditioner do
     )
   end
 
+  @doc """
+  Checks if a shard exists for name.
+  """
+  def exists?(name) do
+    not is_nil(Process.whereis(server_name(name)))
+  end
+
   defp server_name(name), do: :"Conditioner-#{name}"
 
   defp timestamp(), do: :erlang.monotonic_time(:millisecond)
