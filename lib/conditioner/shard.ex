@@ -18,7 +18,7 @@ defmodule Conditioner.Shard do
 
     Timeouts.put(name, timeout)
 
-    state = %{queue: :queue.new(), name: name, limit: limit}
+    state = %{queue: :queue.new(), name: name, limit: limit, timeout: timeout}
     state = clean(state)
 
     {:ok, state}
@@ -56,11 +56,11 @@ defmodule Conditioner.Shard do
   # 2. The queue is empty, we halt.
   # 3. The next item in the queue is expired, it's discarded and we continue.
   # 4. The next item is not expired, it is replied to and released and we continue.
-  defp flush(%{name: name, limit: limit} = state) do
+  defp flush(%{name: name, limit: limit, timeout: timeout} = state) do
     while(state, fn %{queue: queue} = acc ->
       case :queue.out(queue) do
         {{:value, {from, timestamp}}, queue} ->
-          if timestamp() <= timestamp + 3000 do
+          if timestamp() <= timestamp + timeout do
             count = Store.incr(name)
             Telemetry.execute([:count], %{name: name, limit: limit}, %{count: count})
 
