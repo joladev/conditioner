@@ -55,6 +55,11 @@ defmodule ConditionerTest do
     assert :ok = Conditioner.ask(name)
     assert {:error, :timeout} = Conditioner.ask(name)
     assert_received {:event, [:conditioner, :ask, :timeout], _, %{name: name}, _}
+
+    # Wait until the next second
+    Process.sleep(1001)
+
+    assert_received {:event, [:conditioner, :drop], _, %{name: name}, _}
   end
 
   def handle_event(event, measurements, meta, config) do
