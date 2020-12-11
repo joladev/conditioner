@@ -3,7 +3,7 @@
 **WARNING**: use this at your own risk, it's a work in progress
 
 A mechanism for smoothing out function calls over seconds, so that no more than a given number
-will happen per second. Should support at least thousands of calls per service.
+will happen per second. Should support at least thousands of calls per service per second.
 
 It essentially works as a queue where the `GenServer.call/2` timeout is the load shedding mechanism.
 Since it blocks the caller it doesn't require an inverted flow of adding to queue and workers
