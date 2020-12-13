@@ -60,7 +60,9 @@ defmodule ConditionerTest do
 
       assert_received {:event, [:conditioner, :ask, :start], _, %{name: ^name}, _}
       assert_received {:event, [:conditioner, :ask, :end], %{duration: _}, %{name: ^name}, _}
-      assert_received {:event, [:conditioner, :count], %{count: 1}, %{name: ^name}, _}
+
+      assert_received {:event, [:conditioner, :count], %{count: 1},
+                       %{name: ^name, limit: 1, priority: 1}, _}
     end
 
     test "ensure unknown name telemetry event fires", %{name: name} do
@@ -80,7 +82,7 @@ defmodule ConditionerTest do
       # Wait until the next second
       Process.sleep(1001)
 
-      assert_received {:event, [:conditioner, :drop], _, %{name: ^name}, _}
+      assert_received {:event, [:conditioner, :drop], _, %{name: ^name, limit: 1, priority: 1}, _}
     end
   end
 

@@ -41,6 +41,7 @@ defmodule Conditioner.Shard do
   def handle_call({:ask, priority}, from, %__MODULE__{queue: queue} = state) do
     queue = PriorityQueue.insert(queue, priority, {from, timestamp()})
     state = flush(%{state | queue: queue})
+
     {:noreply, state}
   end
 
@@ -67,10 +68,13 @@ defmodule Conditioner.Shard do
   defp flush(%{name: name, limit: limit, timeout: timeout} = state) do
     while(state, fn %{queue: queue} = acc ->
       case PriorityQueue.pop_min(queue) do
-        {{_priority, {from, timestamp}}, queue} ->
+        {{priority, {from, timestamp}}, queue} ->
           if timestamp() <= timestamp + timeout do
             count = Store.incr(name)
-            Telemetry.execute([:count], %{name: name, limit: limit}, %{count: count})
+
+            Telemetry.execute([:count], %{name: name, limit: limit, priority: priority}, %{
+              count: count
+            })
 
             cond do
               count > limit ->
@@ -87,7 +91,8 @@ defmodule Conditioner.Shard do
                 {:cont, %{state | queue: queue}}
             end
           else
-            Telemetry.execute([:drop], %{name: name})
+            Telemetry.execute([:drop], %{name: name, limit: limit, priority: priority})
+
             {:cont, %{state | queue: queue}}
           end
 
