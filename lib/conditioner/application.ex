@@ -3,10 +3,10 @@ defmodule Conditioner.Application do
 
   use Application
 
-  alias Conditioner.Timeouts
+  alias Conditioner.Timeout
 
   def start(_type, _args) do
-    Timeouts.init()
+    Timeout.init()
 
     store_impl = Application.fetch_env!(:conditioner, :store_impl)
 

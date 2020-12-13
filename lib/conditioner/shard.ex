@@ -3,7 +3,13 @@ defmodule Conditioner.Shard do
 
   alias Conditioner.Store
   alias Conditioner.Telemetry
-  alias Conditioner.Timeouts
+  alias Conditioner.Timeout
+  alias Conditioner.PriorityQueue
+
+  @state_keys [:queue, :name, :limit, :timeout]
+
+  @enforce_keys @state_keys
+  defstruct @state_keys
 
   def start_link(opts) do
     name = Keyword.fetch!(opts, :name)
@@ -16,9 +22,11 @@ defmodule Conditioner.Shard do
     limit = Keyword.get(opts, :limit, 5)
     timeout = Keyword.get(opts, :timeout, 5000)
 
-    Timeouts.put(name, timeout)
+    Timeout.put(name, timeout)
 
-    state = %{queue: :queue.new(), name: name, limit: limit, timeout: timeout}
+    queue = PriorityQueue.new()
+
+    state = %__MODULE__{queue: queue, name: name, limit: limit, timeout: timeout}
     state = clean(state)
 
     {:ok, state}
@@ -30,8 +38,8 @@ defmodule Conditioner.Shard do
     {:noreply, state}
   end
 
-  def handle_call(:ask, from, %{queue: queue} = state) do
-    queue = :queue.in({from, timestamp()}, queue)
+  def handle_call({:ask, priority}, from, %__MODULE__{queue: queue} = state) do
+    queue = PriorityQueue.insert(queue, priority, {from, timestamp()})
     state = flush(%{state | queue: queue})
     {:noreply, state}
   end
@@ -58,8 +66,8 @@ defmodule Conditioner.Shard do
   # 4. The next item is not expired, it is replied to and released and we continue.
   defp flush(%{name: name, limit: limit, timeout: timeout} = state) do
     while(state, fn %{queue: queue} = acc ->
-      case :queue.out(queue) do
-        {{:value, {from, timestamp}}, queue} ->
+      case PriorityQueue.pop_min(queue) do
+        {{_priority, {from, timestamp}}, queue} ->
           if timestamp() <= timestamp + timeout do
             count = Store.incr(name)
             Telemetry.execute([:count], %{name: name, limit: limit}, %{count: count})
@@ -83,7 +91,7 @@ defmodule Conditioner.Shard do
             {:cont, %{state | queue: queue}}
           end
 
-        {:empty, _} ->
+        nil ->
           {:halt, acc}
       end
     end)

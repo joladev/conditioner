@@ -1,15 +1,15 @@
 defmodule Conditioner do
   @moduledoc """
   A mechanism for smoothing out function calls over seconds, so that no more than a given number
-  will happen per second. Should support at least thousands of calls per service.
+  will happen per second. Should support at least thousands of calls per service per second.
 
   It essentially works as a queue where the GenServer call timeout is the load shedding mechanism.
   Since it blocks the caller it doesn't require an inverted flow of adding to queue and workers
-  reading from queue. Could also be described as a semaphore where we wait until we can acquire it.
+  reading from queue.
   """
 
   alias Conditioner.Telemetry
-  alias Conditioner.Timeouts
+  alias Conditioner.Timeout
 
   @doc """
   Given a name, timeout and a configured limit of requests per second, either returns :ok immediately
@@ -20,9 +20,14 @@ defmodule Conditioner do
   subsequent requests will wait until the next second and then the next, until they get an :ok
   or time out.
 
+  Optionally call it with a priority to ensure some requests are prioritised over others. If there is
+  available capacity requests are let through no matter the priority, but when capacity is full
+  requests with higher priority are handled first.
+
   If called with a name that hasn't been registered returns `{:error, unknown_name}`.
+  If timed out it returns `{:error, :timeout}`.
   """
-  def ask(name) do
+  def ask(name, priority \\ 1) when is_number(priority) do
     Telemetry.execute(
       [:ask, :start],
       %{name: name}
@@ -30,7 +35,7 @@ defmodule Conditioner do
 
     start = timestamp()
 
-    case Timeouts.get(name) do
+    case Timeout.fetch(name) do
       {:error, :not_found} ->
         Telemetry.execute(
           [:ask, :unknown_name],
@@ -41,8 +46,7 @@ defmodule Conditioner do
 
       {:ok, limit} ->
         try do
-
-          true = GenServer.call(server_name(name), :ask, limit)
+          true = GenServer.call(server_name(name), {:ask, priority}, limit)
 
           Telemetry.execute([:ask, :end], %{name: name}, %{duration: timestamp() - start})
 
