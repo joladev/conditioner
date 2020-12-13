@@ -44,9 +44,9 @@ defmodule Conditioner do
 
         {:error, :unknown_name}
 
-      {:ok, limit} ->
+      {:ok, timeout} ->
         try do
-          true = GenServer.call(server_name(name), {:ask, priority}, limit)
+          true = GenServer.call(server_name(name), {:ask, priority}, timeout)
 
           Telemetry.execute([:ask, :end], %{name: name}, %{duration: timestamp() - start})
 
