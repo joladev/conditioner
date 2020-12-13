@@ -58,6 +58,8 @@ defmodule Conditioner do
               %{name: name}
             )
 
+            Telemetry.execute([:ask, :end], %{name: name}, %{duration: timestamp() - start})
+
             {:error, :timeout}
 
           :exit, {:noproc, _} ->
@@ -66,6 +68,8 @@ defmodule Conditioner do
               %{name: name}
             )
 
+            Telemetry.execute([:ask, :end], %{name: name}, %{duration: timestamp() - start})
+
             {:error, :unknown_name}
 
           reason, message ->
@@ -73,6 +77,8 @@ defmodule Conditioner do
               [:ask, :error],
               %{name: name, error: {reason, message}}
             )
+
+            Telemetry.execute([:ask, :end], %{name: name}, %{duration: timestamp() - start})
 
             {:error, {reason, message}}
         end

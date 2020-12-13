@@ -27,7 +27,14 @@ defmodule Conditioner.Shard do
 
     queue = PriorityQueue.new()
 
-    state = %__MODULE__{queue: queue, name: name, limit: limit, timeout: timeout, window: window}
+    state = %__MODULE__{
+      queue: queue,
+      name: name,
+      limit: limit,
+      timeout: timeout,
+      window: window
+    }
+
     state = clean(state)
 
     {:ok, state}
@@ -39,17 +46,21 @@ defmodule Conditioner.Shard do
     {:noreply, state}
   end
 
-  def handle_call({:ask, priority}, from, %__MODULE__{queue: queue} = state) do
+  def handle_call(
+        {:ask, priority},
+        from,
+        %__MODULE__{queue: queue} = state
+      ) do
     queue = PriorityQueue.insert(queue, priority, {from, timestamp()})
     state = flush(%{state | queue: queue})
 
     {:noreply, state}
   end
 
-  defp clean(%{name: name, window: window} = state) do
+  defp clean(%{name: name, window: window, queue: queue} = state) do
     # This is a new second, we can clean the counter.
     Store.clear(name)
-    Telemetry.execute([:clean], %{name: name})
+    Telemetry.execute([:clean], %{name: name, queue_length: PriorityQueue.length(queue)})
 
     # Flush the queue to respond to waiting callers.
     state = flush(state)
@@ -68,14 +79,23 @@ defmodule Conditioner.Shard do
   # 4. The next item is not expired, it is replied to and released and we continue.
   defp flush(%{name: name, limit: limit, timeout: timeout} = state) do
     while(state, fn %{queue: queue} = acc ->
-      case PriorityQueue.pop_min(queue) do
-        {{priority, {from, timestamp}}, queue} ->
+      case PriorityQueue.find_min(queue) do
+        {priority, {from, timestamp}} ->
           if timestamp() <= timestamp + timeout do
             count = Store.incr(name)
 
-            Telemetry.execute([:count], %{name: name, limit: limit, priority: priority}, %{
-              count: count
-            })
+            Telemetry.execute(
+              [:count],
+              %{
+                name: name,
+                limit: limit,
+                priority: priority,
+                queue_length: PriorityQueue.length(queue)
+              },
+              %{
+                count: count
+              }
+            )
 
             cond do
               count > limit ->
@@ -84,17 +104,22 @@ defmodule Conditioner.Shard do
               count == limit ->
                 GenServer.reply(from, true)
 
-                {:halt, %{state | queue: queue}}
+                {:halt, %{state | queue: PriorityQueue.delete_min(queue)}}
 
               count < limit ->
                 GenServer.reply(from, true)
 
-                {:cont, %{state | queue: queue}}
+                {:cont, %{state | queue: PriorityQueue.delete_min(queue)}}
             end
           else
-            Telemetry.execute([:drop], %{name: name, limit: limit, priority: priority})
+            Telemetry.execute([:drop], %{
+              name: name,
+              limit: limit,
+              priority: priority,
+              queue_length: PriorityQueue.length(queue)
+            })
 
-            {:cont, %{state | queue: queue}}
+            {:cont, %{state | queue: PriorityQueue.delete_min(queue)}}
           end
 
         nil ->
