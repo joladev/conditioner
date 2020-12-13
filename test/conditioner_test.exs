@@ -4,10 +4,11 @@ defmodule ConditionerTest do
   setup(context) do
     limit = Map.get(context, :limit, 1)
     timeout = Map.get(context, :conditioner_timeout, 100)
+    window = Map.get(context, :window, 250)
 
     # Generate a unique name for each test run to avoid conflicts.
     name = sequence()
-    Conditioner.install(name, limit: limit, timeout: timeout)
+    Conditioner.install(name, limit: limit, timeout: timeout, window: window)
 
     on_exit(fn ->
       Conditioner.uninstall(name)
@@ -31,7 +32,7 @@ defmodule ConditionerTest do
       assert {:error, :unknown_name} = Conditioner.ask("some name")
     end
 
-    @tag conditioner_timeout: 1001
+    @tag conditioner_timeout: 251
     test "higher priority requests come first", %{name: name} do
       t1 = Task.async(fn -> Conditioner.ask(name, 1) end)
       t2 = Task.async(fn -> Conditioner.ask(name, 2) end)
@@ -80,7 +81,7 @@ defmodule ConditionerTest do
       assert_received {:event, [:conditioner, :ask, :timeout], _, %{name: ^name}, _}
 
       # Wait until the next second
-      Process.sleep(1001)
+      Process.sleep(251)
 
       assert_received {:event, [:conditioner, :drop], _, %{name: ^name, limit: 1, priority: 1}, _}
     end

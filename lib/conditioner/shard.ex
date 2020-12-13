@@ -6,7 +6,7 @@ defmodule Conditioner.Shard do
   alias Conditioner.Timeout
   alias Conditioner.PriorityQueue
 
-  @state_keys [:queue, :name, :limit, :timeout]
+  @state_keys [:queue, :name, :limit, :timeout, :window]
 
   @enforce_keys @state_keys
   defstruct @state_keys
@@ -20,13 +20,14 @@ defmodule Conditioner.Shard do
   def init(opts) do
     name = Keyword.fetch!(opts, :name)
     limit = Keyword.get(opts, :limit, 5)
-    timeout = Keyword.get(opts, :timeout, 5000)
+    timeout = Keyword.get(opts, :timeout, 5_000)
+    window = Keyword.get(opts, :window, 1_000)
 
     Timeout.put(name, timeout)
 
     queue = PriorityQueue.new()
 
-    state = %__MODULE__{queue: queue, name: name, limit: limit, timeout: timeout}
+    state = %__MODULE__{queue: queue, name: name, limit: limit, timeout: timeout, window: window}
     state = clean(state)
 
     {:ok, state}
@@ -45,7 +46,7 @@ defmodule Conditioner.Shard do
     {:noreply, state}
   end
 
-  defp clean(%{name: name} = state) do
+  defp clean(%{name: name, window: window} = state) do
     # This is a new second, we can clean the counter.
     Store.clear(name)
     Telemetry.execute([:clean], %{name: name})
@@ -53,7 +54,7 @@ defmodule Conditioner.Shard do
     # Flush the queue to respond to waiting callers.
     state = flush(state)
 
-    Process.send_after(self(), :clean, 1000)
+    Process.send_after(self(), :clean, window)
 
     state
   end
