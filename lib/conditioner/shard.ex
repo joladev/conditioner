@@ -58,7 +58,7 @@ defmodule Conditioner.Shard do
   end
 
   defp clean(%{name: name, window: window, queue: queue} = state) do
-    # This is a new second, we can clean the counter.
+    # This is a new window, we can clean the counter.
     Store.clear(name)
     Telemetry.execute([:clean], %{name: name, queue_length: PriorityQueue.length(queue)})
 
@@ -73,7 +73,7 @@ defmodule Conditioner.Shard do
   defp timestamp(), do: :erlang.monotonic_time(:millisecond)
 
   # Repeatedly reads from the queue and has 4 branches
-  # 1. We've hit the limit of calls for this second, so we halt.
+  # 1. We've hit the limit of calls for this window, so we halt.
   # 2. The queue is empty, we halt.
   # 3. The next item in the queue is expired, it's discarded and we continue.
   # 4. The next item is not expired, it is replied to and released and we continue.
