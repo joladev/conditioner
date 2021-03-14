@@ -90,6 +90,7 @@ defmodule Conditioner do
   """
   def install(name, opts) do
     opts = Keyword.put(opts, :name, name)
+    distributed? = Keyword.put(opts, :name, name)
     DynamicSupervisor.start_child(ConditionerSupervisor, {Conditioner.Shard, opts})
   end
 
